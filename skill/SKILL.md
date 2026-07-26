@@ -1,12 +1,12 @@
 ---
-name: skill
-title: CamoFox MCP for OpenClaw
+name: camofox-mcp
+title: CamoFox MCP
 version: 1.14.5
-description: Anti-detection browser automation MCP skill for OpenClaw agents with 47 tools for navigation, interaction, observation, extraction, downloads, profiles, sessions, and stealth web search.
+description: Use the locally registered CamoFox MCP for anti-detection browser navigation, interaction, extraction, downloads, profiles, sessions, and web search.
 author: redf0x1
 tags:
   - mcp
-  - openclaw
+  - hermes
   - browser-automation
   - anti-detection
   - camofox
@@ -15,12 +15,12 @@ tags:
 license: MIT
 homepage: https://github.com/redf0x1/camofox-mcp#readme
 metadata:
-  title: CamoFox MCP for OpenClaw
-version: 1.14.5
+  title: CamoFox MCP
+  version: 1.14.5
   author: redf0x1
   tags:
     - mcp
-    - openclaw
+    - hermes
     - browser-automation
     - anti-detection
     - camofox
@@ -31,7 +31,10 @@ version: 1.14.5
 
 # CamoFox MCP Skill
 
-CamoFox MCP gives OpenClaw agents a production-ready anti-detection browser automation toolkit over MCP HTTP transport. It connects OpenClaw to CamoFox Browser so agents can browse, click, type, extract content, manage cookies/sessions, run stealth search workflows, and download resources without the high block rates common with standard automation stacks.
+CamoFox MCP gives Hermes a production-ready anti-detection browser automation
+toolkit. The registered stdio server connects to the local CamoFox Browser so
+agents can browse, click, type, extract content, manage cookies and sessions,
+run stealth search workflows, and download resources.
 
 ## Why this skill exists
 
@@ -50,19 +53,19 @@ Most browser automation flows eventually hit CAPTCHAs, fingerprint checks, or bo
 CamoFox Browser must be running first (default `http://localhost:9377`).
 Use `camofox-browser` `2.4.6` or newer so fresh installs pin the Camoufox-compatible Playwright protocol dependency. Browser `2.4.5` introduced explicit browser auth modes, and browser `2.4.4` fixed first-tab reuse for persistent contexts.
 
-### 2) Start CamoFox MCP in HTTP mode
+### 2) Build the local MCP server
 
 ```bash
-CAMOFOX_TRANSPORT=http npx camofox-mcp@1.14.5
+cd "${HERMES_SERVICES_ROOT:-$HOME/Hermes}/camofox-mcp"
+bun install --frozen-lockfile
+bun run build
 ```
 
-Optional examples:
+Hermes runs the built stdio entrypoint directly:
 
 ```bash
-CAMOFOX_TRANSPORT=http CAMOFOX_API_KEY=browser-server-key npx camofox-mcp@1.14.5
-CAMOFOX_TRANSPORT=http CAMOFOX_HTTP_HOST=0.0.0.0 CAMOFOX_HTTP_API_KEY=replace-with-32-plus-random-chars npx camofox-mcp@1.14.5
-CAMOFOX_TRANSPORT=http CAMOFOX_HTTP_PORT=8080 npx camofox-mcp@1.14.5
-CAMOFOX_VIEWPORT=1366x768 npx camofox-mcp@1.14.5
+hermes mcp add camofox-mcp \
+  "$HOME/.bun/bin/bun ${HERMES_SERVICES_ROOT:-$HOME/Hermes}/camofox-mcp/dist/index.js"
 ```
 
 For browser `CAMOFOX_AUTH_MODE=disabled` on a trusted private agent network,
@@ -73,24 +76,10 @@ headers. Keep that browser endpoint private.
 `create_tab` does not provide an explicit `viewport`. Use `WIDTHxHEIGHT` format;
 width must be `320..3840` and height must be `240..2160`.
 
-### 3) Configure OpenClaw
-
-Add this MCP server:
-
-```json
-{
-  "mcpServers": {
-    "camofox": {
-      "url": "http://localhost:3000/mcp"
-    }
-  }
-}
-```
-
-Alternative skill-generation flow:
+### 3) Verify Hermes registration
 
 ```bash
-npx @filiksyos/mcptoskill http://localhost:3000/mcp
+hermes mcp list
 ```
 
 ## Trigger phrases
@@ -197,4 +186,4 @@ Use this skill when the user asks for tasks like:
 - Rich tool surface (47 tools) combining low-level controls + high-level workflows
 - Snapshot-first design that reduces token burn while preserving actionable context
 - Built-in profile/session controls for long-running authenticated automations
-- Native HTTP MCP endpoint for OpenClaw and remote MCP-compatible clients
+- Native stdio and HTTP transports for Hermes and other MCP-compatible clients
