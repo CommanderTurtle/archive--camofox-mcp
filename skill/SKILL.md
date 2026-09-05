@@ -16,7 +16,7 @@ license: MIT
 homepage: https://github.com/redf0x1/camofox-mcp#readme
 metadata:
   title: CamoFox MCP for OpenClaw
-version: 1.15.0
+  version: 1.15.0
   author: redf0x1
   tags:
     - mcp
