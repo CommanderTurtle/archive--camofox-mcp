@@ -20,6 +20,32 @@ You need both components running:
 1. `camofox-browser` handles the anti-detection browser.
 2. `camofox-mcp` exposes that browser to your MCP client.
 
+### Hermes and OMP checkout integration
+
+The checked-out repository includes repeatable workstation integration for
+Hermes and OMP:
+
+```bash
+./integrate.sh
+./doctor.sh
+./update.sh
+```
+
+`integrate.sh` installs the frozen Bun dependency graph, rebuilds the stdio
+entrypoint, and reconciles every ordinary Hermes and OMP profile. Hermes is
+configured through its native `config` command; OMP's current release has no
+MCP management command, so its `mcp.json` files are updated atomically with
+timestamped backups. Existing `CAMOFOX_URL` and `CAMOFOX_API_KEY` values are
+preserved unless environment overrides are supplied. Private worker profiles
+are left isolated.
+
+The integration adds no routing skill and no shell hook. Hermes exposes all
+CamoFox MCP tools because the server has no include/exclude filter; `doctor.sh`
+checks the native `hermes mcp list`, `hermes tools list`, and hook registry in
+addition to both clients' stored configuration. These checks do not contact
+the browser service. `update.sh` refuses a dirty checkout, fast-forwards, and
+then runs the same integration path.
+
 ### Option A: `npx` + stdio
 
 Start the browser server:
