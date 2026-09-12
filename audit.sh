@@ -2,16 +2,7 @@
 set -Eeuo pipefail
 
 root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-repository_args=()
-owner_args=()
-for argument in "$@"; do
-  if [[ "$argument" == "--dry-run" ]]; then
-    repository_args+=("$argument")
-  else
-    owner_args+=("$argument")
-  fi
-done
-exec sandwich repository update \
+exec sandwich repository audit \
   --root="$root" \
   --source-remote="${CAMOFOX_MCP_SOURCE_REMOTE:-upstream}" \
   --source-url="${CAMOFOX_MCP_SOURCE_URL:-https://github.com/redf0x1/camofox-mcp.git}" \
@@ -20,6 +11,5 @@ exec sandwich repository update \
   --fork-url="${CAMOFOX_MCP_FORK_URL:-https://github.com/CommanderTurtle/archive--camofox-mcp.git}" \
   --fork-branch="${CAMOFOX_MCP_FORK_BRANCH:-main}" \
   --publish-mode=ff \
-  --verify=integrate.sh \
-  --commit-message="chore: refresh Camofox MCP dependencies" \
-  "${repository_args[@]}" -- "${owner_args[@]}"
+  --doctor=doctor.sh \
+  -- "$@"

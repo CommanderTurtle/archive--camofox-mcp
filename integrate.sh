@@ -18,7 +18,7 @@ done
 if [[ "$dry_run" == 0 ]]; then
   "$bun_bin" install --frozen-lockfile --ignore-scripts
   "$bun_bin" run build
-  chmod +x -- "$root/integrate.sh" "$root/doctor.sh" "$root/update.sh" \
+  chmod +x -- "$root/audit.sh" "$root/integrate.sh" "$root/doctor.sh" "$root/update.sh" \
     "$root/scripts/configure-harnesses.mjs" "$root/scripts/doctor-harnesses.mjs"
 fi
 

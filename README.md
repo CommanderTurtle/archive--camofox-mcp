@@ -26,6 +26,7 @@ The checked-out repository includes repeatable workstation integration for
 Hermes and OMP:
 
 ```bash
+./audit.sh
 ./integrate.sh
 ./doctor.sh
 ./update.sh
@@ -48,8 +49,11 @@ runtime check fails when the HTTP service is reachable but its browser has
 gone cold, because a cold launch can outlive a harness request deadline. Pass
 `--offline` to restrict the doctor to configuration checks. Native harness
 queries are bounded too, so one unhealthy profile cannot hang the audit. No
-navigation is performed. `update.sh` refuses a dirty checkout, fast-forwards,
-and then runs the same integration path.
+navigation is performed. `audit.sh` reports the named upstream/fork and scoped
+Bun state without changing the worktree. `update.sh` uses Sandwich's shared
+repository engine to reconcile both refs, run the same integration path,
+prepare any verified local maintenance commit, and print the exact fork push
+command. It never pushes.
 
 ### Option A: `npx` + stdio
 
