@@ -6,6 +6,8 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const home = os.homedir();
@@ -14,17 +16,30 @@ const ompHome = path.resolve(process.env.OMP_HOME || path.join(home, ".omp", "ag
 const serverEntry = path.join(root, "dist", "index.js");
 const requested = [];
 let jsonOutput = false;
+let offline = false;
+let camofoxUrl = process.env.CAMOFOX_URL || "http://127.0.0.1:9377";
+let runtimeTimeoutMs = 5_000;
+let commandTimeoutMs = 10_000;
 const args = process.argv.slice(2);
 while (args.length) {
   const argument = args.shift();
   if (argument === "--target") requested.push(String(args.shift() || ""));
-  else if (argument === "--camofox-url") args.shift();
+  else if (argument === "--camofox-url") camofoxUrl = String(args.shift() || "");
+  else if (argument === "--runtime-timeout-ms") runtimeTimeoutMs = Number(args.shift());
+  else if (argument === "--command-timeout-ms") commandTimeoutMs = Number(args.shift());
+  else if (argument === "--offline") offline = true;
   else if (argument === "--dry-run") {}
   else if (argument === "--json") jsonOutput = true;
   else if (argument === "--help" || argument === "-h") {
-    console.log("Usage: bun scripts/doctor-harnesses.mjs [--target hermes|omp|all] [--json]");
+    console.log("Usage: bun scripts/doctor-harnesses.mjs [--target hermes|omp|all] [--camofox-url URL] [--runtime-timeout-ms MS] [--command-timeout-ms MS] [--offline] [--json]");
     process.exit(0);
   } else throw new Error(`Unknown option: ${argument}`);
+}
+if (!Number.isFinite(runtimeTimeoutMs) || runtimeTimeoutMs <= 0) {
+  throw new Error("--runtime-timeout-ms must be a positive number");
+}
+if (!Number.isFinite(commandTimeoutMs) || commandTimeoutMs <= 0) {
+  throw new Error("--command-timeout-ms must be a positive number");
 }
 const targets = !requested.length || requested.includes("all")
   ? ["hermes", "omp"]
@@ -39,7 +54,10 @@ function check(target, name, pass, detail) {
 
 function commandPath(name) {
   try {
-    return execFileSync("sh", ["-lc", `command -v ${name}`], { encoding: "utf8" }).trim();
+    return execFileSync("sh", ["-lc", `command -v ${name}`], {
+      encoding: "utf8",
+      timeout: commandTimeoutMs,
+    }).trim();
   } catch {
     return "";
   }
@@ -68,6 +86,7 @@ function hermesGet(hermes, profile, key) {
       encoding: "utf8",
       env: { ...process.env, HERMES_HOME: hermesHome },
       stdio: ["ignore", "pipe", "pipe"],
+      timeout: commandTimeoutMs,
     }).trim();
   } catch {
     return null;
@@ -80,6 +99,7 @@ function hermesOutput(hermes, profile, values) {
       encoding: "utf8",
       env: { ...process.env, HERMES_HOME: hermesHome },
       stdio: ["ignore", "pipe", "pipe"],
+      timeout: commandTimeoutMs,
     });
   } catch {
     return null;
@@ -136,6 +156,40 @@ function ompProfiles() {
   return result;
 }
 
+async function probeRuntime() {
+  if (!bun || !existsSync(serverEntry)) {
+    return { connected: false, toolCount: 0, status: null, error: "Bun runtime or built MCP entrypoint is missing" };
+  }
+  const transport = new StdioClientTransport({
+    command: bun,
+    args: [serverEntry],
+    env: { ...process.env, CAMOFOX_URL: camofoxUrl },
+    stderr: "pipe",
+  });
+  const client = new Client({ name: "camofox-owner-doctor", version: "1.0.0" });
+  try {
+    await client.connect(transport, { timeout: runtimeTimeoutMs });
+    const tools = await client.listTools(undefined, { timeout: runtimeTimeoutMs });
+    const response = await client.callTool(
+      { name: "server_status", arguments: {} },
+      undefined,
+      { timeout: runtimeTimeoutMs },
+    );
+    const text = response.content?.find((item) => item.type === "text")?.text;
+    const status = text ? JSON.parse(text) : null;
+    return { connected: true, toolCount: tools.tools.length, status, error: null };
+  } catch (error) {
+    return {
+      connected: false,
+      toolCount: 0,
+      status: null,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  } finally {
+    await client.close().catch(() => {});
+  }
+}
+
 check("core", "source package", existsSync(path.join(root, "package.json")), path.join(root, "package.json"));
 check("core", "built stdio entrypoint", existsSync(serverEntry), serverEntry);
 check("core", "MCP SDK dependency", existsSync(path.join(root, "node_modules", "@modelcontextprotocol", "sdk")), "official SDK installed");
@@ -190,12 +244,26 @@ if (targets.includes("omp")) {
   }
 }
 
+if (!offline) {
+  const runtime = await probeRuntime();
+  check("runtime", "bounded MCP initialize/list-tools", runtime.connected, runtime.error || `${runtime.toolCount} tools`);
+  check("runtime", "server_status call", runtime.status?.reachable === true, runtime.error || JSON.stringify(runtime.status));
+  check(
+    "runtime",
+    "browser pre-warmed",
+    runtime.status?.browserConnected === true,
+    runtime.status?.browserConnected === true
+      ? `${camofoxUrl} browserConnected=true`
+      : `${camofoxUrl} is reachable but the browser is cold; first create_tab can exceed a harness request deadline`,
+  );
+}
+
 if (jsonOutput) {
   console.log(JSON.stringify({ ok: checks.every((item) => item.pass), checks }, null, 2));
 } else {
   for (const item of checks) {
     console.log(`${item.pass ? "PASS" : "FAIL"}  ${item.target.padEnd(7)} ${item.name} — ${item.detail}`);
   }
-  console.log(`\n${checks.filter((item) => item.pass).length}/${checks.length} checks passed; no browser or model request was made.`);
+  console.log(`\n${checks.filter((item) => item.pass).length}/${checks.length} checks passed; no navigation or model request was made.`);
 }
 if (checks.some((item) => !item.pass)) process.exitCode = 1;

@@ -42,9 +42,14 @@ are left isolated.
 The integration adds no routing skill and no shell hook. Hermes exposes all
 CamoFox MCP tools because the server has no include/exclude filter; `doctor.sh`
 checks the native `hermes mcp list`, `hermes tools list`, and hook registry in
-addition to both clients' stored configuration. These checks do not contact
-the browser service. `update.sh` refuses a dirty checkout, fast-forwards, and
-then runs the same integration path.
+addition to both clients' stored configuration. It also performs a bounded
+stdio initialize/list-tools exchange and calls only `server_status`. The
+runtime check fails when the HTTP service is reachable but its browser has
+gone cold, because a cold launch can outlive a harness request deadline. Pass
+`--offline` to restrict the doctor to configuration checks. Native harness
+queries are bounded too, so one unhealthy profile cannot hang the audit. No
+navigation is performed. `update.sh` refuses a dirty checkout, fast-forwards,
+and then runs the same integration path.
 
 ### Option A: `npx` + stdio
 
