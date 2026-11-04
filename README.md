@@ -20,10 +20,9 @@ You need both components running:
 1. `camofox-browser` handles the anti-detection browser.
 2. `camofox-mcp` exposes that browser to your MCP client.
 
-### Hermes and OMP checkout integration
+### OMP checkout integration (Hermes optional)
 
-The checked-out repository includes repeatable workstation integration for
-Hermes and OMP:
+The checked-out repository includes repeatable workstation integration:
 
 ```bash
 ./audit.sh
@@ -33,18 +32,23 @@ Hermes and OMP:
 ```
 
 `integrate.sh` installs the frozen Bun dependency graph, rebuilds the stdio
-entrypoint, and reconciles every ordinary Hermes and OMP profile. Hermes is
-configured through its native `config` command; OMP's current release has no
-MCP management command, so its `mcp.json` files are updated atomically with
-timestamped backups. Existing `CAMOFOX_URL` and `CAMOFOX_API_KEY` values are
-preserved unless environment overrides are supplied. Private worker profiles
-are left isolated.
+entrypoint, and reconciles every ordinary OMP profile; OMP is the default
+target. Hermes is opt-in through the same script:
+`./integrate.sh --target hermes` configures it through its native `config`
+command and fails when the `hermes` CLI is not on PATH, while `--target all`
+configures every client that is present and reports a skipped Hermes instead.
+`--target` and `--camofox-url URL` are accepted by `doctor.sh` as well. OMP's
+current release has no MCP management command, so its `mcp.json` files are
+updated atomically with timestamped backups. Existing `CAMOFOX_URL` and
+`CAMOFOX_API_KEY` values are preserved unless environment overrides are
+supplied. Private worker profiles are left isolated.
 
-The integration adds no routing skill and no shell hook. Hermes exposes all
-CamoFox MCP tools because the server has no include/exclude filter; `doctor.sh`
-checks the native `hermes mcp list`, `hermes tools list`, and hook registry in
-addition to both clients' stored configuration. It also performs a bounded
-stdio initialize/list-tools exchange and calls only `server_status`. The
+The integration adds no routing skill and no shell hook. When Hermes is
+selected and installed it exposes all CamoFox MCP tools because the server has
+no include/exclude filter, and `doctor.sh` checks the native `hermes mcp list`,
+`hermes tools list`, and hook registry alongside both clients' stored
+configuration. It also performs a bounded stdio initialize/list-tools exchange
+and calls only `server_status`. The
 runtime check fails when the HTTP service is reachable but its browser has
 gone cold, because a cold launch can outlive a harness request deadline. Pass
 `--offline` to restrict the doctor to configuration checks. Native harness

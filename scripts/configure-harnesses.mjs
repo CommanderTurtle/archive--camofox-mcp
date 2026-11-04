@@ -30,10 +30,14 @@ let backupStamp = "";
 function usage() {
   return `Usage: bun scripts/configure-harnesses.mjs [install|uninstall] [options]
 
-  --target hermes|omp|all  target client; repeatable (default: all)
+  --target hermes|omp|all  target client; repeatable (default: omp)
   --camofox-url URL        browser service URL (preserves each existing value by default)
   --dry-run                print operations without writing
   --help                   show this help
+
+OMP is the default target and Hermes is opt-in. all configures whichever clients
+are present, so a machine without the Hermes CLI is skipped; --target hermes makes
+that absence an error.
 
 Environment: HERMES_HOME, OMP_HOME, CAMOFOX_URL, CAMOFOX_API_KEY`;
 }
@@ -42,6 +46,7 @@ function parseArgs(argv) {
   const result = {
     action: "install",
     targets: [],
+    explicit: new Set(),
     dryRun: false,
     url: process.env.CAMOFOX_URL || "",
   };
@@ -57,7 +62,9 @@ function parseArgs(argv) {
     else if (argument === "--camofox-url") result.url = String(args.shift() || "");
     else throw new Error(`Unknown option: ${argument}`);
   }
-  if (!result.targets.length || result.targets.includes("all")) result.targets = ["hermes", "omp"];
+  result.explicit = new Set(result.targets.filter((target) => target !== "all"));
+  if (!result.targets.length) result.targets = ["omp"];
+  else if (result.targets.includes("all")) result.targets = ["omp", "hermes"];
   result.targets = [...new Set(result.targets)];
   const invalid = result.targets.filter((target) => !["hermes", "omp"].includes(target));
   if (invalid.length) throw new Error(`Unknown target: ${invalid.join(", ")}`);
@@ -288,8 +295,20 @@ const actions = {
   install: { hermes: installHermes, omp: installOmp },
   uninstall: { hermes: uninstallHermes, omp: uninstallOmp },
 };
+const configured = [];
 for (const target of options.targets) {
+  if (target === "hermes" && !commandPath("hermes")) {
+    if (options.explicit.has("hermes")) {
+      throw new Error("Hermes is not on PATH; its native configuration command is required. Use --target omp to configure OMP only.");
+    }
+    log("skip hermes: hermes is not on PATH; pass --target hermes to require it");
+    continue;
+  }
+  configured.push(target);
   log(`${options.action} ${target}`);
   actions[options.action][target]();
 }
 if (backupStamp) log(`backups: ${path.join(backupRoot, backupStamp)}`);
+if (configured.length && !options.dryRun) {
+  log(`restart running ${configured.join("/")} clients so they reload MCP configuration; the browser service was not contacted`);
+}

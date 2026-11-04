@@ -31,7 +31,7 @@ while (args.length) {
   else if (argument === "--dry-run") {}
   else if (argument === "--json") jsonOutput = true;
   else if (argument === "--help" || argument === "-h") {
-    console.log("Usage: bun scripts/doctor-harnesses.mjs [--target hermes|omp|all] [--camofox-url URL] [--runtime-timeout-ms MS] [--command-timeout-ms MS] [--offline] [--json]");
+    console.log("Usage: bun scripts/doctor-harnesses.mjs [--target hermes|omp|all] [--camofox-url URL] [--runtime-timeout-ms MS] [--command-timeout-ms MS] [--offline] [--json]\n\nTargets default to omp; all checks omp and, when the hermes CLI is installed, hermes.");
     process.exit(0);
   } else throw new Error(`Unknown option: ${argument}`);
 }
@@ -41,15 +41,18 @@ if (!Number.isFinite(runtimeTimeoutMs) || runtimeTimeoutMs <= 0) {
 if (!Number.isFinite(commandTimeoutMs) || commandTimeoutMs <= 0) {
   throw new Error("--command-timeout-ms must be a positive number");
 }
-const targets = !requested.length || requested.includes("all")
-  ? ["hermes", "omp"]
-  : [...new Set(requested)];
+const explicitTargets = new Set(requested.filter((target) => target !== "all"));
+const targets = !requested.length
+  ? ["omp"]
+  : requested.includes("all")
+    ? [...new Set(["omp", "hermes", ...explicitTargets])]
+    : [...new Set(requested)];
 const invalid = targets.filter((target) => !["hermes", "omp"].includes(target));
 if (invalid.length) throw new Error(`Unknown target: ${invalid.join(", ")}`);
 
 const checks = [];
-function check(target, name, pass, detail) {
-  checks.push({ target, name, pass: Boolean(pass), detail });
+function check(target, name, pass, detail, skip = false) {
+  checks.push({ target, name, pass: Boolean(pass), detail, skip });
 }
 
 function commandPath(name) {
@@ -199,7 +202,10 @@ check("core", "Bun runtime", Boolean(bun), bun || "not on PATH");
 
 if (targets.includes("hermes")) {
   const hermes = commandPath("hermes");
-  check("hermes", "native CLI", Boolean(hermes), hermes || "not on PATH");
+  const hermesRequired = explicitTargets.has("hermes");
+  if (hermes) check("hermes", "native CLI", true, hermes);
+  else if (hermesRequired) check("hermes", "native CLI", false, "not on PATH");
+  else check("hermes", "native CLI", true, "skipped: not installed and not named by --target", true);
   if (hermes) {
     for (const profile of ordinaryHermesProfiles(hermes)) {
       const prefix = profile.name;
@@ -258,12 +264,18 @@ if (!offline) {
   );
 }
 
+const failures = checks.filter((item) => !item.pass && !item.skip);
+const skipped = checks.filter((item) => item.skip);
+const counted = checks.length - skipped.length;
 if (jsonOutput) {
-  console.log(JSON.stringify({ ok: checks.every((item) => item.pass), checks }, null, 2));
+  console.log(JSON.stringify({ ok: failures.length === 0, checks }, null, 2));
 } else {
   for (const item of checks) {
-    console.log(`${item.pass ? "PASS" : "FAIL"}  ${item.target.padEnd(7)} ${item.name} — ${item.detail}`);
+    const status = item.skip ? "SKIP" : item.pass ? "PASS" : "FAIL";
+    console.log(`${status}  ${item.target.padEnd(7)} ${item.name} — ${item.detail}`);
   }
-  console.log(`\n${checks.filter((item) => item.pass).length}/${checks.length} checks passed; no navigation or model request was made.`);
+  console.log(
+    `\n${counted - failures.length}/${counted} checks passed${skipped.length ? `, ${skipped.length} skipped` : ""}; no navigation or model request was made.`,
+  );
 }
-if (checks.some((item) => !item.pass)) process.exitCode = 1;
+if (failures.length) process.exitCode = 1;

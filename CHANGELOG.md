@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- `integrate.sh` and `scripts/configure-harnesses.mjs` now target OMP by default; Hermes is opt-in through `--target hermes`, and `--target all` configures only the clients that are present. `./integrate.sh --help` documents the selection.
+- `scripts/doctor-harnesses.mjs` defaults to the OMP target and reports a skipped Hermes row, rather than a failure, when Hermes is not named explicitly and its CLI is absent. `--target hermes` still fails when Hermes is missing.
+
 ## [1.16.0] - 2026-10-25
 
 - Add MCP-owned custom URL-template search via `CAMOFOX_SEARCH_URL_TEMPLATE` and `web_search` engine `custom`, retaining existing browser macros and network policy.

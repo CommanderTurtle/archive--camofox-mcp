@@ -4,6 +4,20 @@ set -Eeuo pipefail
 root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 cd "$root"
 
+usage() {
+  cat <<'USAGE'
+Usage: ./integrate.sh [--target hermes|omp|all] [--camofox-url URL] [--dry-run]
+
+Builds the stdio entrypoint and registers this checkout as an MCP server for the
+selected client. OMP is the default target; --target all configures every client
+that is present, and --target hermes requires the Hermes CLI to be on PATH.
+USAGE
+}
+
+for argument in "$@"; do
+  [[ "$argument" == "--help" || "$argument" == "-h" ]] && { usage; exit 0; }
+done
+
 bun_bin="$(command -v bun || true)"
 [[ -n "$bun_bin" ]] || {
   printf 'CamoFox MCP integration requires Bun or Sandwich.\n' >&2
@@ -26,5 +40,4 @@ fi
 
 if [[ "$dry_run" == 0 ]]; then
   "$bun_bin" "$root/scripts/doctor-harnesses.mjs" "$@"
-  printf '\nRestart running OMP/Hermes clients so they reload MCP configuration. The browser service was not contacted.\n'
 fi
