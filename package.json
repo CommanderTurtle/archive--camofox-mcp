@@ -67,14 +67,14 @@
   ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
-    "express-rate-limit": "^8.5.1",
+    "express-rate-limit": "^8.7.3",
     "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
-    "@types/node": "^22.0.0",
-    "tsx": "^4.0.0",
-    "typescript": "^5.7.0",
-    "vitest": "^4.0.18"
+    "@types/node": "^22.20.5",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.12"
   }
 }
